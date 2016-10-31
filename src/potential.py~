@@ -1,0 +1,34 @@
+import numpy as np
+
+def gaussian(centers, a, weights):
+	"""
+	Args:
+		X (numpy.array): x-coordinates on rectangular mesh
+		Y (numpy.array): y-coordinates on rectangular mesh
+		centers (numpy.array): Location of centers of Gaussian bumps. Shape = (2, m)
+		a (numpy.array): amplitude of each Gaussian bump. Shape = (m,)
+		weights (numpy.array): quadratic weights on each exponential. Shape = (2,m)
+
+	Returns:
+	potential: function of mesh coordinates (X, Y)
+	"""
+
+	assert centers.shape[0] == 2 and weights.shape[0] == 2
+	assert a.shape[0] == centers.shape[1] and a.shape[0] == weights.shape[1]
+	m = centers.shape[1]
+
+	def Q(X, Y):
+		"""
+			Args:
+			X (numpy.array): x-coordinates on rectangular mesh
+			Y (numpy.array): y-coordinates on rectangular mesh
+		
+			Returns:
+			potential values (numpy.array) on mesh (X, Y)
+		"""
+		assert X.shape == Y.shape
+		result = np.zeros_like(X)
+		for j in xrange(m):
+			result += a[j]*np.exp( -weights[0,j]*(X - centers[0,j])**2 - weights[1,j]*(Y - centers[1,j])**2 )
+
+	return Q

@@ -1,0 +1,123 @@
+import numpy as np
+import itertools as it
+import domain
+import matplotlib.pyplot as plt
+cimport numpy as np
+DTYPE = np.float
+ctypedef np.float_t DTYPE_t
+DTYPEINT = np.int
+ctypedef np.int_t DTYPEINT_t
+
+cdef extern from "math.h":
+	float sqrt(float x)
+
+cdef extern from "stdlib.h":
+	float fmin(float x, float y)
+	float fmax(float x, float y)
+	float fabs(float x)
+
+cimport cython
+@cython.boundscheck(False)
+def sweep(grid, np.ndarray[DTYPE_t, ndim=2] phi, np.ndarray[DTYPE_t, ndim=2] R, H, sigma, int sx, int sy):
+	cdef unsigned int i, j, nx, ny
+	cdef DTYPE_t g
+	cdef DTYPE_t h = grid.h
+	cdef DTYPE_t phibar = 0.0
+	cdef DTYPE_t phi_max_diff = 0.0
+	cdef np.ndarray[dtype=DTYPE_t, ndim=1] v = np.zeros(2, dtype = DTYPE)
+	#cdef np.ndarray[dtype=DTYPEINT_t, ndim=2] history = np.zeros(grid.shape, dtype=DTYPEINT)
+	#cdef np.ndarray[dtype=DTYPE_t, ndim=2] umindiff = np.zeros(grid.shape, dtype=DTYPE)
+	assert abs(sx) == 1 and abs(sy) == 1
+
+	## history codes
+	# in binary, h[i,j] is b3b2b1b0
+	# b0 indicated if u[i,j] was changed in the sweep
+	# b1 indicates if uxmin is u[i+1,j]
+	# b2 indicates if uymin is u[i,j+1]
+	# b3 indicates if |uxmin - uymin| < h/c[i,j] 
+	# b4 indicates if uxmin < uymin
+	#
+	# we use bit operations to set h[i,j] properly
+	# to get bit i of an integer n: int(n & (1 << i) > 0)
+	# to set bit i of an integer n to 1: n = n | (1<<i)
+
+	nx, ny = grid.nx, grid.ny
+	g = h/(sigma[0] + sigma[1])
+
+	if sx == 1:
+		i_i = 1
+		i_f = nx-1
+	elif sx == -1:
+		i_i = nx-2
+		i_f = 0
+	
+	if sy == 1:
+		j_i = 1
+		j_f = ny-1
+	elif sy == -1:
+		j_i = ny-2
+		j_f = 0
+
+	for i in xrange(i_i, i_f, sx):
+		for j in xrange(j_i, j_f, sy):
+			#interior grid points
+			v[0] = 0.5*(phi[i+1,j] - phi[i-1,j])
+			v[1] = 0.5*(phi[i,j+1] - phi[i,j-1])
+
+			phibar = g*( R[i,j] - H(grid.X[i,j], grid.Y[i,j], v[0]/h, v[1]/h) )\
+				+ (1.0/(sigma[0] + sigma[1]))*(sigma[0]*0.5*(phi[i+1,j] + phi[i-1,j]) + sigma[1]*0.5*(phi[i,j+1] + phi[i,j-1]))
+			phi_max_diff = fmax(phi_max_diff, phi[i,j] - phibar)
+			phi[i,j] = fmin(phibar, phi[i,j])
+
+	
+	#enforce boundary condition
+	for i in xrange(1, nx-1, 1):
+		#handle j = 0 and j = grid.shape[1]-1	
+		phibar = fmax(2*phi[i,1] - phi[i,2], phi[i,2])
+		phi_max_diff = fmax(phi_max_diff, phi[i,0] - phibar)
+		phi[i,0] = fmin(phibar, phi[i,0])
+
+		phibar = fmax(2*phi[i,ny-2] - phi[i,ny-3], phi[i,ny-3])
+		phi_max_diff = fmax(phi_max_diff, phi[i,ny-1] - phibar)
+		phi[i,ny-1] = fmin(phibar, phi[i,ny-1])
+
+	for j in xrange(1, ny-1, 1):
+		phibar = fmax(2*phi[1,j] - phi[2,j], phi[2,j])
+		phi_max_diff = fmax(phi_max_diff, phi[0,j] - phibar)
+		phi[0,j] = fmin(phibar, phi[0,j])
+
+		phibar = fmax(2*phi[nx-2,j] - phi[nx-3,j], phi[nx-3,j])
+		phi_max_diff = fmax(phi_max_diff, phi[nx-1,j] - phibar)
+		phi[nx-1,j] = fmin(phibar, phi[nx-1,j])
+	
+	#corners (not really needed)
+#	phi[0,0] = fmin(0.5*(phi[1,0] + phi[0,1]), phi[0,0])
+#	phi[nx-1,ny-1] = fmin(0.5*(phi[nx-1, ny-2] + phi[nx-2, ny-1]), phi[nx-1,ny-1])
+#	phi[0,ny-1] = fmin(0.5*(phi[0,ny-2] + phi[1,ny-1]), phi[0,ny-1])
+#	phi[nx-1,0] = fmin(0.5*(phi[nx-2,0] + phi[nx-1,1]), phi[nx-1,0])
+
+	return phi_max_diff
+
+
+
+def travel_times(grid, phi_0, R, H, sigma = [10.0, 10.0], maxiter = 40, tol = 1e-10, memory = False, debug = False):
+	phi = phi_0.copy()
+	sx_set = [1, 1, -1, -1]
+	sy_set = [1, -1, 1, -1]
+	
+#	H = []
+#	U = []
+
+	for i, (sx, sy) in enumerate(it.cycle(zip(sx_set, sy_set))):	
+		max_diff = sweep(grid, phi, R, H, sigma, sx, sy)
+#		H.append(history)
+#		U.append(umindiff)
+
+		if debug:
+			print("fastsweeping.first_arrivals: iteration = {}, max_diff = {:.15f}".format(i, max_diff))
+		
+		if max_diff < tol or i >= maxiter:
+			break
+
+#	return u, H, U
+	return phi
