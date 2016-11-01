@@ -42,7 +42,7 @@ def sweep(grid, np.ndarray[DTYPE_t, ndim=2] phi, np.ndarray[DTYPE_t, ndim=2] R, 
 	# to set bit i of an integer n to 1: n = n | (1<<i)
 
 	nx, ny = grid.nx, grid.ny
-	g = h/(sigma[0] + sigma[1])
+	g = 1.0/(sigma[0] + sigma[1])
 
 	if sx == 1:
 		i_i = 1
@@ -64,37 +64,42 @@ def sweep(grid, np.ndarray[DTYPE_t, ndim=2] phi, np.ndarray[DTYPE_t, ndim=2] R, 
 			v[0] = 0.5*(phi[i+1,j] - phi[i-1,j])
 			v[1] = 0.5*(phi[i,j+1] - phi[i,j-1])
 
-			phibar = g*( R[i,j] - H(grid.X[i,j], grid.Y[i,j], v[0]/h, v[1]/h) )\
-				+ (1.0/(sigma[0] + sigma[1]))*(sigma[0]*0.5*(phi[i+1,j] + phi[i-1,j]) + sigma[1]*0.5*(phi[i,j+1] + phi[i,j-1]))
-			phi_max_diff = fmax(phi_max_diff, phi[i,j] - phibar)
-			phi[i,j] = fmin(phibar, phi[i,j])
+			phibar = g*( h*R[i,j] - h*H(grid.X[i,j], grid.Y[i,j], v[0]/h, v[1]/h) )\
+				+ g*(sigma[0]*0.5*(phi[i+1,j] + phi[i-1,j]) + sigma[1]*0.5*(phi[i,j+1] + phi[i,j-1]))
+
+			phi_max_diff = max(phi_max_diff, phi[i,j] - phibar)
+			phi[i,j] = min(phibar, phi[i,j])
 
 	
 	#enforce boundary condition
 	for i in xrange(1, nx-1, 1):
 		#handle j = 0 and j = grid.shape[1]-1	
-		phibar = fmax(2*phi[i,1] - phi[i,2], phi[i,2])
-		phi_max_diff = fmax(phi_max_diff, phi[i,0] - phibar)
-		phi[i,0] = fmin(phibar, phi[i,0])
+		phibar = max(2*phi[i,1] - phi[i,2], phi[i,2])
+		if phibar < phi[i,0]:
+			phi_max_diff = max(phi_max_diff, phi[i,0] - phibar)
+			phi[i,0] = min(phibar, phi[i,0])
 
-		phibar = fmax(2*phi[i,ny-2] - phi[i,ny-3], phi[i,ny-3])
-		phi_max_diff = fmax(phi_max_diff, phi[i,ny-1] - phibar)
-		phi[i,ny-1] = fmin(phibar, phi[i,ny-1])
+		phibar = max(2*phi[i,ny-2] - phi[i,ny-3], phi[i,ny-3])
+		if phibar < phi[i,ny-1]:
+			phi_max_diff = max(phi_max_diff, phi[i,ny-1] - phibar)
+			phi[i,ny-1] = min(phibar, phi[i,ny-1])
 
 	for j in xrange(1, ny-1, 1):
-		phibar = fmax(2*phi[1,j] - phi[2,j], phi[2,j])
-		phi_max_diff = fmax(phi_max_diff, phi[0,j] - phibar)
-		phi[0,j] = fmin(phibar, phi[0,j])
+		phibar = max(2*phi[1,j] - phi[2,j], phi[2,j])
+		if phibar < phi[0,j]:
+			phi_max_diff = max(phi_max_diff, phi[0,j] - phibar)
+			phi[0,j] = min(phibar, phi[0,j])
 
-		phibar = fmax(2*phi[nx-2,j] - phi[nx-3,j], phi[nx-3,j])
-		phi_max_diff = fmax(phi_max_diff, phi[nx-1,j] - phibar)
-		phi[nx-1,j] = fmin(phibar, phi[nx-1,j])
+		phibar = max(2*phi[nx-2,j] - phi[nx-3,j], phi[nx-3,j])
+		if phibar < phi[nx-1, j]:		
+			phi_max_diff = max(phi_max_diff, phi[nx-1,j] - phibar)
+			phi[nx-1,j] = min(phibar, phi[nx-1,j])
 	
 	#corners (not really needed)
-#	phi[0,0] = fmin(0.5*(phi[1,0] + phi[0,1]), phi[0,0])
-#	phi[nx-1,ny-1] = fmin(0.5*(phi[nx-1, ny-2] + phi[nx-2, ny-1]), phi[nx-1,ny-1])
-#	phi[0,ny-1] = fmin(0.5*(phi[0,ny-2] + phi[1,ny-1]), phi[0,ny-1])
-#	phi[nx-1,0] = fmin(0.5*(phi[nx-2,0] + phi[nx-1,1]), phi[nx-1,0])
+	phi[0,0] = min(0.5*(phi[1,0] + phi[0,1]), phi[0,0])
+	phi[nx-1,ny-1] = min(0.5*(phi[nx-1, ny-2] + phi[nx-2, ny-1]), phi[nx-1,ny-1])
+	phi[0,ny-1] = min(0.5*(phi[0,ny-2] + phi[1,ny-1]), phi[0,ny-1])
+	phi[nx-1,0] = min(0.5*(phi[nx-2,0] + phi[nx-1,1]), phi[nx-1,0])
 
 	return phi_max_diff
 
@@ -102,8 +107,8 @@ def sweep(grid, np.ndarray[DTYPE_t, ndim=2] phi, np.ndarray[DTYPE_t, ndim=2] R, 
 
 def travel_times(grid, phi_0, R, H, sigma = [10.0, 10.0], maxiter = 40, tol = 1e-10, memory = False, debug = False):
 	phi = phi_0.copy()
-	sx_set = [1, 1, -1, -1]
-	sy_set = [1, -1, 1, -1]
+	sx_set = [1, -1, 1, -1]
+	sy_set = [1, 1, -1, -1]
 	
 #	H = []
 #	U = []

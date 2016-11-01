@@ -9,8 +9,8 @@ import numpy as np
 import potential
 import hamiltonian
 
-nx = 200
-a1 = -4; a2 = 4; b1 = -4; b2 = 4;
+nx = 300
+a1 = -1; a2 = 1; b1 = -1; b2 = 1;
 grid = domain.Rectangle(a1,a2,b1,b2,nx)
 
 #centers = np.array([[1,0],[-1,0]], dtype = np.float)
@@ -21,13 +21,20 @@ grid = domain.Rectangle(a1,a2,b1,b2,nx)
 H = hamiltonian.eikonal()
 R = np.ones(grid.shape)
 
-phi = 1e2*np.ones(grid.shape)
-phi[0, nx/2] = 0.0
+phi = 20.0*np.ones(grid.shape)
+phi[1,1] = 0.0
 
-phi = fastsweeping.travel_times(grid, phi, R, H, sigma = [100,100], maxiter = 20, tol = 1e-10, memory = False, debug = True)
+phi = fastsweeping.travel_times(grid, phi, R, H, sigma = [1.0, 1.0], maxiter = 1000, tol = 1e-10, memory = False, debug = True)
 
-plt.imshow(phi.T, origin = "lower")
+print phi[0,0]
+print phi[1,1]
+print phi[-2,-2]
+print np.sqrt(2.0*(2.0 - 2*grid.h)**2)
+
+plt.imshow(phi[1:-1,1:-1].T, origin = "lower")
 plt.colorbar()
 plt.show()
+
+
 
 
